@@ -1,0 +1,5 @@
+error: Invalid tag 'not_existent'. Allowed tags are: ["tag1", "tag2"].
+ --> tests/failures/f01_not_allowed_tag.rs:3:7
+  |
+3 | #[tag(not_existent)]
+  |       ^^^^^^^^^^^^

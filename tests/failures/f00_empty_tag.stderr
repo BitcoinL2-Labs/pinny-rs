@@ -1,0 +1,7 @@
+error: at least one tag is required: #[pinny::tag(<tags...>)]
+ --> tests/failures/f00_empty_tag.rs:3:1
+  |
+3 | #[tag()]
+  | ^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `tag` (in Nightly builds, run with -Z macro-backtrace for more info)

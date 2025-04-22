@@ -1,0 +1,5 @@
+error: Only one #[pinny::tag] per function is allowed.
+ --> tests/failures/f03_multi_tag.rs:6:1
+  |
+6 | fn test_compilation_failure() {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

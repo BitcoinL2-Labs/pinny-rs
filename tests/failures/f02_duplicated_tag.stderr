@@ -1,0 +1,5 @@
+error: Duplicated tag 'tag1'.
+ --> tests/failures/f02_duplicated_tag.rs:3:7
+  |
+3 | #[tag(tag1, tag1)]
+  |       ^^^^^^^^^^

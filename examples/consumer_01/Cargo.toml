@@ -1,0 +1,11 @@
+[package]
+name = "consumer_a"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+pinny = { path = "../../pinny" }
+# pinny = { path = "../../pinny", features = ["debug"]}
+
+[package.metadata.pinny] 
+allowed = ["fast", "slow", "bitcoin", "other"]
