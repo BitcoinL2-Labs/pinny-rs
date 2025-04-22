@@ -35,9 +35,9 @@ In your package `Cargo.toml` define the list of allowed tags for your tests, by 
 ...
 
 [dev-dependencies]
-testag = ...
+pinny = ...
 
-[package.metadata.testag] 
+[package.metadata.pinny] 
 allowed = ["tag1", "tag2", "tag3"]
 ```
 
