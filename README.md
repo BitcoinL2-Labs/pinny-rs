@@ -143,3 +143,32 @@ This ensure specific delimiter pattern enclosing the list of labels `t::<labels>
 Known or potential drawbacks:
 - Exact test match: filtering test by "exact" path match cannot more be used (e.g. `--exact` option).  Anyhow, considering that original test path is preserved is still possibile filter by it. So this should be a very minor issue.
 - Interoperability with other crates: considering the test function mangling,  potentially this can conflict with other testing lbraries that do test mangling as well(like: `rstest` or `test_case`). Depending on the case, it could be addressed with proper ordering of the related attributes, or not at all.
+- Using `super::` from a parent module: within a tagged test, referencing symbols from a parent module (for instance `super::parent_func`) won't compile. This can mitigated importing the symbol outside the test (`use super::parent_func`) and then directly use the symbol within the test (`parent_func()`);
+    ```rust
+    // mod.rs
+    //////////////////////////////////
+    #[cfg(test)]
+    mod test_module;
+    
+    fn parent_func() {}
+    //////////////////////////////////
+
+    
+    // test_module.rs
+    //////////////////////////////////
+    #[tag(tag1)]
+    #[test]
+    fn test_fail() {
+        // won't compile: symbol not found
+        super::parent_func();
+    }
+
+    use super::parent_func;
+
+    #[tag(tag1)]
+    #[test]
+    fn test_ok() {
+        parent_func();
+    }
+    //////////////////////////////////
+    ```
