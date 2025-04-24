@@ -64,3 +64,12 @@ jobs:
             - name: Execute Tests
               id: execute_tests
               run: cargo-nextest nextest run --color always --no-fail-fast 
+
+    check:
+        name: All Checks Passed
+        runs-on: ubuntu-24.04
+        needs:
+            - lint
+            - tests
+        steps:
+            - run: echo "All checks passed!"
