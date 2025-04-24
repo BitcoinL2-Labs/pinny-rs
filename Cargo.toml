@@ -1,6 +1,6 @@
 [package]
 name = "pinny"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Federico De Felici <federico@bitcoinl2labs.com>"]
 edition = "2021"
 license = "GPLv3"
