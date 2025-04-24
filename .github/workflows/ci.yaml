@@ -1,0 +1,66 @@
+name: CI
+
+on:
+    push:
+        branches:
+        - main
+
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+permissions: read-all
+
+concurrency:
+    group: push-pr-${{ github.head_ref || github.ref_name || github.run_id}}
+    cancel-in-progress: true
+
+env:
+  NEXTEST_VERSION: 0.9.88
+
+jobs:
+    lint:
+        name: Run Lints
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Checkout Repository
+              id: checkout_Repository
+              uses: stacks-sbtc/actions/checkout@main
+            
+            - name: Setup Rust
+              id: setup_rust
+              uses: stacks-sbtc/actions/setup-rust-toolchain@main
+              with:
+                # components: clippy, rustfmt
+                cache-key: "rust-cache"
+            
+            - name: Lint (Rustfmt)
+              id: lint_rustfmt
+              run: cargo pinny-fmt --check
+
+            - name: Lint (Clippy)
+              id: lint_clippy
+              run: cargo pinny-clippy
+
+    tests:
+        name: Run Tests
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Checkout Repository
+              id: checkout_Repository
+              uses: stacks-sbtc/actions/checkout@main
+
+            - name: Setup Rust
+              id: setup_rust
+              uses: stacks-sbtc/actions/setup-rust-toolchain@main
+              with:
+                cache-key: "rust-cache"
+
+            - name: Install Action
+              id: install_action
+              uses: stacks-sbtc/actions/install-action@main
+              with:
+                tool: nextest@${{ env.NEXTEST_VERSION }}
+
+            - name: Execute Tests
+              id: execute_tests
+              run: cargo-nextest nextest run --color always --no-fail-fast 
