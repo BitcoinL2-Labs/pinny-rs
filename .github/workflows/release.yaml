@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semantic version (e.g. 1.2.3)"
+        required: true
+
+env:
+  SOURCE_BRANCH: develop
+  RELEASE_BRANCH: release
+
+jobs:
+  check_input:
+    name: Validate User Input
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.sanitize_version.outputs.version }}
+    steps:
+      - name: Sanitize Version
+        id: sanitize_version
+        uses: stacks-sbtc/actions/github-script@main
+        with:
+          script: |
+            const version = "${{ inputs.version }}";
+            const semverRegex = /^\d+\.\d+\.\d+$/;
+            
+            if (!semverRegex.test(version)) {
+              core.setFailed(`Invalid version format: "${version}". Expected SemVer X.Y.Z);
+            } else {
+              console.log(`Valid version: ${version}`);
+              core.setOutput('version', version);
+            }
+
+  check_preconditions:
+    name: Check Preconditions
+    runs-on: ubuntu-latest
+    needs: check_input
+    steps:
+      - name: Checkout source branch (${{ env.SOURCE_BRANCH }})
+        id: checkout_source_branch
+        uses: stacks-sbtc/actions/checkout@main
+        with:
+          ref: ${{ env.SOURCE_BRANCH }}
+      
+      - name: Validate Cargo.toml version
+        id: validate_cargo_toml_version
+        uses: stacks-sbtc/actions/github-script@main
+        with:
+          script: |
+            const version = '${{ needs.check_input.outputs.version }}';
+            const fs = require('fs');
+            const tomlFilePath = './Cargo.toml';
+
+            try {
+              const cargoToml = fs.readFileSync(tomlFilePath, 'utf-8');
+              const versionRegex = new RegExp(`^version = "${version}"$`);
+              
+              if (versionRegex.test(cargoToml)) {
+                console.log(`Cargo.toml contains version ${version}`);
+              } else {
+                core.setFailed(`Version ${version} not matching `package.version` in Cargo.toml`);
+              }
+            } catch (error) {
+              core.setFailed(`Failed to read Cargo.toml: ${error.message}`);
+            }
+
+  do_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: 
+      - check_input
+      - check_preconditions
+    steps:
+      - name: Checkout source branch (${{ env.SOURCE_BRANCH }})
+        id: checkout_source_branch
+        uses: stacks-sbtc/actions/checkout@main
+        with:
+          ref: ${{ env.SOURCE_BRANCH }}
+
+      - name: Merge ${{ env.SOURCE_BRANCH }} into ${{ env.RELEASE_BRANCH }}
+        id: merge_source_into_release
+        uses: stacks-sbtc/actions/github-script@main
+        with:
+          script: |
+            await github.rest.repos.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base: "${{ env.RELEASE_BRANCH }}",
+              head: "${{ env.SOURCE_BRANCH }}",
+              commit_message: "Release v${{ needs.check_input.outputs.version }}"
+            });
+            console.log(" ${{ env.SOURCE_BRANCH }} merged into  ${{ env.RELEASE_BRANCH }}");
+
+      - name: Create tag 
+        id: create_tag
+        uses: stacks-sbtc/actions/github-script@main
+        with:
+          script: |
+            const tag = `v${{ needs.check_input.outputs.version }}`;
+            const baseBranch = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: "${{ env.RELEASE_BRANCH }}"
+            });
+
+            const commit_sha = baseBranch.data.commit.sha;
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${tag}`,
+              sha: ${tag}
+            });
+            console.log(`Created tag ${tag} on ${{ env.RELEASE_BRANCH }} [sha:${commit_sha}]`);
+
+      - name: Draft GitHub Release
+        uses: stacks-sbtc/actions/github-script@main
+        with:
+          script: |
+            const version = `v${{ needs.check_input.outputs.version }}`;
+            const releaseName = `Release ${version}`;
+            const releaseDescription = `Release description for ${version}`;
+
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: version,
+              name: releaseName,
+              body: releaseDescription,
+              draft: true,
+              prerelease: false,
+            });
+
+            console.log("Created draft release: ${release.data.html_url}`);
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
