@@ -13,7 +13,7 @@ permissions:
 
 env:
   SOURCE_BRANCH: develop
-  RELEASE_BRANCH: release
+  RELEASE_BRANCH: master
   SEMVER: ${{ github.event.inputs.version }}
 
 jobs:
