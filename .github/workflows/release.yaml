@@ -7,27 +7,30 @@ on:
         description: "Semantic version (e.g. 1.2.3)"
         required: true
 
+permissions:
+  contents: write # Needed to create a tag
+  actions: write # Needed to trigger another workflow via API
+
 env:
   SOURCE_BRANCH: develop
   RELEASE_BRANCH: release
+  SEMVER: ${{ github.event.inputs.version }}
 
 jobs:
   check_input:
     name: Validate User Input
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.sanitize_version.outputs.version }}
     steps:
       - name: Sanitize Version
         id: sanitize_version
         uses: stacks-sbtc/actions/github-script@main
         with:
           script: |
-            const version = "${{ inputs.version }}";
+            const version = "${{ env.SEMVER }}";
             const semverRegex = /^\d+\.\d+\.\d+$/;
             
             if (!semverRegex.test(version)) {
-              core.setFailed(`Invalid version format: "${version}". Expected SemVer X.Y.Z);
+              core.setFailed(`Invalid version format: "${version}". Expected SemVer X.Y.Z`);
             } else {
               console.log(`Valid version: ${version}`);
               core.setOutput('version', version);
@@ -49,18 +52,25 @@ jobs:
         uses: stacks-sbtc/actions/github-script@main
         with:
           script: |
-            const version = '${{ needs.check_input.outputs.version }}';
+            const version = '${{ env.SEMVER }}';            
             const fs = require('fs');
             const tomlFilePath = './Cargo.toml';
 
             try {
               const cargoToml = fs.readFileSync(tomlFilePath, 'utf-8');
-              const versionRegex = new RegExp(`^version = "${version}"$`);
-              
-              if (versionRegex.test(cargoToml)) {
-                console.log(`Cargo.toml contains version ${version}`);
+              const packageSectionRegex = /\[package\][\s\S]*?version\s*=\s*"([^"]+)"/;
+              const match = cargoToml.match(packageSectionRegex);
+
+              if (!match) {
+                core.setFailed(`Missing "package.version" in Cargo.toml`);
               } else {
-                core.setFailed(`Version ${version} not matching `package.version` in Cargo.toml`);
+                const pkg_version = match[1];
+
+                if (pkg_version === version) {
+                  console.log(`Cargo.toml contains version ${version}`);
+                } else {
+                  core.setFailed(`Version ${version} not matching "package.version" ${pkg_version} in Cargo.toml`);
+                }
               }
             } catch (error) {
               core.setFailed(`Failed to read Cargo.toml: ${error.message}`);
@@ -89,16 +99,15 @@ jobs:
               repo: context.repo.repo,
               base: "${{ env.RELEASE_BRANCH }}",
               head: "${{ env.SOURCE_BRANCH }}",
-              commit_message: "Release v${{ needs.check_input.outputs.version }}"
+              commit_message: "Release v${{ env.SEMVER }}"
             });
-            console.log(" ${{ env.SOURCE_BRANCH }} merged into  ${{ env.RELEASE_BRANCH }}");
 
       - name: Create tag 
         id: create_tag
         uses: stacks-sbtc/actions/github-script@main
         with:
           script: |
-            const tag = `v${{ needs.check_input.outputs.version }}`;
+            const tag = 'v${{ env.SEMVER }}';
             const baseBranch = await github.rest.repos.getBranch({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -110,28 +119,27 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: `refs/tags/${tag}`,
-              sha: ${tag}
+              sha: commit_sha
             });
-            console.log(`Created tag ${tag} on ${{ env.RELEASE_BRANCH }} [sha:${commit_sha}]`);
 
-      - name: Draft GitHub Release
+      - name: Create GitHub Release
         uses: stacks-sbtc/actions/github-script@main
         with:
           script: |
-            const version = `v${{ needs.check_input.outputs.version }}`;
-            const releaseName = `Release ${version}`;
+            const version = `v${{ env.SEMVER }}`;
             const releaseDescription = `Release description for ${version}`;
 
             const release = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: version,
-              name: releaseName,
+              name: version,
               body: releaseDescription,
-              draft: true,
+              draft: false,
               prerelease: false,
+               generate_release_notes: true
             });
 
-            console.log("Created draft release: ${release.data.html_url}`);
+            console.log(`Created draft release: ${release.data.html_url}`);
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
